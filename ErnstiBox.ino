@@ -1,7 +1,12 @@
 /* ErnstiBox
 *
 * ..is a small cube for children which can play sounds or stories. The audio files are
-* selected using RFID tags. 
+* selected using RFID tags and played from an SD card to be changed over time. 
+*
+* Todo:
+* 1. Touch buttons for volume control
+* 2. Auto shut-off after some time in WAITING/PAUSE
+* 3. Fade out sound before pausing
 *
 * Author: Ernst M Lübeck
 * Date: 2020-09-05
@@ -20,11 +25,6 @@
 #define PIN_RFID_RST 5 
 #define PIN_RFID_CS 8 // SDA
 
-/* NRF12 A, prototype 1*/
-// #define IRQ_PIN 5
-// #define CE_PIN 6 
-// #define CSN_PIN 8
-
 //#define DEBUG_CPU_USAGE
 //#define DEBUG_RFID_UID
 
@@ -34,12 +34,16 @@
 #define PIN_SDCARD_MISO 12
 #define PIN_SDCARD_SCK 14  // not actually used
 
+#define PIN_TOUCH_VOLUP
+#define PIN_TOUCH_VOLDOWN
+
 #define PLAYING 1
 #define PAUSING 2
 #define WAITING 3
 
-#define VOLUME 0.1
+#define VOLUME 0.25
 #define RFID_POLLING_DELAY 100 /* [ms], delay between RFID tak polling event */
+#define TIME_SHUTDOWN 300000 /* [ms], time in idle to turn off device */
 
 /* RDID card UID to sound mapping */
 #define SOUND_DONKEY 105
@@ -50,8 +54,12 @@
 // GUItool: begin automatically generated code
 AudioPlaySdMp3           Mp3Player;       //xy=154,78
 AudioOutputI2S           i2s1;           //xy=334,89s
-AudioConnection          patchCord1(Mp3Player, 0, i2s1, 0);
-AudioConnection          patchCord2(Mp3Player, 1, i2s1, 1);
+AudioMixer4              mixer1; 
+AudioConnection          patchCord1(Mp3Player, 0, mixer1, 0);
+AudioConnection          patchCord2(Mp3Player, 1, mixer1, 1);
+AudioConnection          patchCord3(mixer1, 0, i2s1, 0);
+AudioConnection          patchCord4(mixer1, 0, i2s1, 1);
+
 AudioControlSGTL5000     sgtl5000;     //xy=240,153
 // GUItool: end automatically generated code
 
@@ -62,6 +70,8 @@ int uid_temp = -1; /* temporary uid */
 int uid_k = -1; /* newest UID[k] */
 int uid_kn1 = -1; /* last UID[k-1] */
 boolean FlagCardPresent = 0;
+
+unsigned long TiIdleStart = 0;
 
 void handleRfidCards(boolean* FlagCardPresent_, int* uid_k_);
 int getRfidUid();
@@ -77,6 +87,12 @@ void setup()
 
     sgtl5000.enable();
     sgtl5000.volume(VOLUME);
+
+    mixer1.gain(0, VOLUME); /* mp3 L */
+    mixer1.gain(1, VOLUME); /* mp3 R */
+    mixer1.gain(2, 0.0); /* not connected */
+    mixer1.gain(3, 0.0); /* not connected */
+
     Serial.println(" Done.");
 
     SPI.setMOSI(PIN_SDCARD_MISO);
@@ -103,7 +119,8 @@ void setup()
     Serial.println(" Done.");
 
     StPlayer = WAITING;
-    Serial.println("WAITING");
+
+    TiIdleStart = millis();
 }
 
 void loop() 
@@ -114,6 +131,7 @@ void loop()
 
         while (Mp3Player.isPlaying()) 
         {
+            TiIdleStart = millis();
             handleRfidCards(&FlagCardPresent, &uid_temp);
 
             if(uid_temp != -1)
@@ -124,6 +142,7 @@ void loop()
             if(!FlagCardPresent)
             {   Mp3Player.pause(1);
                 StPlayer = PAUSING;
+                TiIdleStart = millis();
                 break;
             }
 
@@ -132,6 +151,7 @@ void loop()
         if(StPlayer != PAUSING)
         {
             StPlayer = WAITING;
+            TiIdleStart = millis();
         }
         
         break;
@@ -156,6 +176,7 @@ void loop()
             else
             {
                 StPlayer = WAITING;
+                TiIdleStart = millis();
             }
         }
         
@@ -197,7 +218,10 @@ void loop()
   
         break;
 
-        default: StPlayer = WAITING; break;
+        default: 
+        StPlayer = WAITING; 
+        TiIdleStart = millis();
+        break;
     }
 
     uid_kn1 = uid_k;
@@ -217,6 +241,13 @@ void loop()
 #endif 
 
     delay(RFID_POLLING_DELAY);
+
+    if((millis()-TiIdleStart) >= TIME_SHUTDOWN)
+    {
+        Serial.println("SHUT DOWN");
+        TiIdleStart = millis();
+
+    }
 
 }
 
