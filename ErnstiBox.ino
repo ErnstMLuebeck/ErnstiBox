@@ -21,6 +21,10 @@
 
 #include <MFRC522.h>
 
+/* Power Button */
+#define PIN_POWER_HOLD 2
+#define PIN_BUTTON_STATE 3
+
 /* RFID module pins */
 #define PIN_RFID_RST 5 
 #define PIN_RFID_CS 8 // SDA
@@ -41,9 +45,9 @@
 #define PAUSING 2
 #define WAITING 3
 
-#define VOLUME 0.25
+#define VOLUME 0.1
 #define RFID_POLLING_DELAY 100 /* [ms], delay between RFID tak polling event */
-#define TIME_SHUTDOWN 300000 /* [ms], time in idle to turn off device */
+#define TIME_SHUTDOWN 10000 /* [ms], time in idle to turn off device */
 
 /* RDID card UID to sound mapping */
 #define SOUND_DONKEY 105
@@ -78,6 +82,12 @@ int getRfidUid();
 
 void setup() 
 {
+    pinMode(PIN_POWER_HOLD, OUTPUT);
+    digitalWrite(PIN_POWER_HOLD, HIGH);
+
+    pinMode(PIN_BUTTON_STATE, INPUT);
+    digitalWrite(PIN_BUTTON_STATE, HIGH);
+
     Serial.begin(9600);
     //while (!Serial); /* does not work without PC! */
     delay(250);
@@ -246,6 +256,8 @@ void loop()
     {
         Serial.println("SHUT DOWN");
         TiIdleStart = millis();
+
+        digitalWrite(PIN_POWER_HOLD, LOW);
 
     }
 
