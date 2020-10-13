@@ -41,11 +41,13 @@
 #define PIN_TOUCH_VOLUP
 #define PIN_TOUCH_VOLDOWN
 
+/* Main states */
 #define PLAYING 1
 #define PAUSING 2
 #define WAITING 3
+#define SHUTDOWN 4
 
-#define VOLUME 0.1
+#define VOLUME 0.25 /* 4 Ohm speaker only 0.1! */
 #define RFID_POLLING_DELAY 100 /* [ms], delay between RFID tak polling event */
 #define TIME_SHUTDOWN 10000 /* [ms], time in idle to turn off device */
 
@@ -82,9 +84,11 @@ int getRfidUid();
 
 void setup() 
 {
+    /* Keep MOSFET on power module turned on */
     pinMode(PIN_POWER_HOLD, OUTPUT);
     digitalWrite(PIN_POWER_HOLD, HIGH);
 
+    /* Power button state */
     pinMode(PIN_BUTTON_STATE, INPUT);
     digitalWrite(PIN_BUTTON_STATE, HIGH);
 
@@ -228,7 +232,13 @@ void loop()
   
         break;
 
+        case SHUTDOWN:
+        /* Turn off MOSFET on power module */
+        digitalWrite(PIN_POWER_HOLD, LOW);
+        break;
+
         default: 
+
         StPlayer = WAITING; 
         TiIdleStart = millis();
         break;
@@ -254,11 +264,8 @@ void loop()
 
     if((millis()-TiIdleStart) >= TIME_SHUTDOWN)
     {
-        Serial.println("SHUT DOWN");
+        StPlayer = SHUTDOWN; 
         TiIdleStart = millis();
-
-        digitalWrite(PIN_POWER_HOLD, LOW);
-
     }
 
 }
