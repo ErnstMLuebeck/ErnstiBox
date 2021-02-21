@@ -22,19 +22,22 @@
 #include <MFRC522.h>
 
 /* Power Button */
-#define PIN_POWER_HOLD 2
+#define PIN_POWER_HOLD 6
 #define PIN_BUTTON_STATE 3
 
+/* Audio amplifier !shutdown */
+#define PIN_PAM_SD 4
+
 /* RFID module pins */
-#define PIN_RFID_RST 5 
-#define PIN_RFID_CS 8 // SDA
+#define PIN_RFID_RST 9 
+#define PIN_RFID_CS 16 // SDA
 
 //#define DEBUG_CPU_USAGE
-//#define DEBUG_RFID_UID
+#define DEBUG_RFID_UID
 
 /* Built-in SD card pins */
-#define PIN_SDCARD_CS BUILTIN_SDCARD
-#define PIN_SDCARD_MOSI 7  // not actually used
+#define PIN_SDCARD_CS 10
+#define PIN_SDCARD_MOSI 11  // not actually used
 #define PIN_SDCARD_MISO 12
 #define PIN_SDCARD_SCK 14  // not actually used
 
@@ -47,7 +50,7 @@
 #define WAITING 3
 #define SHUTDOWN 4
 
-#define VOLUME 0.25 /* 4 Ohm speaker only 0.1! */
+#define VOLUME 0.5 /* 4 Ohm speaker only 0.1! */
 #define RFID_POLLING_DELAY 100 /* [ms], delay between RFID tak polling event */
 #define TIME_SHUTDOWN 10000 /* [ms], time in idle to turn off device */
 
@@ -88,6 +91,9 @@ void setup()
     pinMode(PIN_POWER_HOLD, OUTPUT);
     digitalWrite(PIN_POWER_HOLD, HIGH);
 
+    pinMode(PIN_PAM_SD, OUTPUT);
+    digitalWrite(PIN_PAM_SD, HIGH);
+
     /* Power button state */
     pinMode(PIN_BUTTON_STATE, INPUT);
     digitalWrite(PIN_BUTTON_STATE, HIGH);
@@ -100,10 +106,14 @@ void setup()
     AudioMemory(5);
 
     sgtl5000.enable();
-    sgtl5000.volume(VOLUME);
+    sgtl5000.volume(0.5);
+    sgtl5000.lineOutLevel(29); /* 20 = 2.14 Vpp, 31 = 1.16 Vpp */
 
-    mixer1.gain(0, VOLUME); /* mp3 L */
-    mixer1.gain(1, VOLUME); /* mp3 R */
+    float LvlSoundDB = -16;
+    float LvlSoundLin = pow(10, LvlSoundDB/20);
+
+    mixer1.gain(0, LvlSoundLin); /* mp3 L */
+    mixer1.gain(1, LvlSoundLin); /* mp3 R */
     mixer1.gain(2, 0.0); /* not connected */
     mixer1.gain(3, 0.0); /* not connected */
 
@@ -233,8 +243,12 @@ void loop()
         break;
 
         case SHUTDOWN:
-        /* Turn off MOSFET on power module */
-        digitalWrite(PIN_POWER_HOLD, LOW);
+            /* Turn off MOSFET on power module */
+            digitalWrite(PIN_PAM_SD, LOW);
+            digitalWrite(PIN_POWER_HOLD, LOW);
+            
+            StPlayer = WAITING; 
+            delay(2000);
         break;
 
         default: 
