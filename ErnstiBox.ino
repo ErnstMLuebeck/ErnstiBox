@@ -16,6 +16,7 @@
 #include <Wire.h>
 #include <SPI.h>
 #include <SD.h>
+#include <FastLED.h> 
 
 #include <play_sd_mp3.h>
 
@@ -25,6 +26,15 @@
 #define PIN_POWER_HOLD 6
 #define PIN_BUTTON_STATE 3
 
+/* Push button pins */
+#define PIN_PB_UP 3 /* Also switches power MOSFET */
+#define PIN_PB_OK 2
+#define PIN_PB_DOWN  22
+
+#define PIN_RGB_LED 1
+
+#define PIN_VBAT A1
+
 /* Audio amplifier !shutdown */
 #define PIN_PAM_SD 4
 
@@ -33,7 +43,7 @@
 #define PIN_RFID_CS 16 // SDA
 
 //#define DEBUG_CPU_USAGE
-#define DEBUG_RFID_UID
+//#define DEBUG_RFID_UID
 
 /* Built-in SD card pins */
 #define PIN_SDCARD_CS 10
@@ -41,8 +51,22 @@
 #define PIN_SDCARD_MISO 12
 #define PIN_SDCARD_SCK 14  // not actually used
 
-#define PIN_TOUCH_VOLUP
-#define PIN_TOUCH_VOLDOWN
+#define COLOR_ON CRGB(220, 220, 220)
+#define COLOR_CARD_PRESENT CRGB(0, 0, 0) //CRGB(255, 220, 255)
+
+/* AUDIO SHIELD PIN MAPPING Teensy 4.0 */
+// I2C SDA = 18
+// I2C SCL = 19
+// I2S DOUT TX = 8
+// I2S DIN RX = 7
+// I2S LRCLK =  20 (44.1 kHz)
+// BLCK = 21 (1.41 MHz)
+// MCLK = 23 (11.29 MHz)
+// SD SPI MOSI = 11
+// SD SPI CS = 10
+// SD SPI MISO = 12
+// SD SPI SCK = 13
+// VOL POT = 15 (A1)
 
 /* Main states */
 #define PLAYING 1
@@ -52,7 +76,7 @@
 
 #define VOLUME 0.5 /* 4 Ohm speaker only 0.1! */
 #define RFID_POLLING_DELAY 100 /* [ms], delay between RFID tak polling event */
-#define TIME_SHUTDOWN 10000 /* [ms], time in idle to turn off device */
+#define TIME_SHUTDOWN 300000 /* [ms], time in idle to turn off device */
 
 /* RDID card UID to sound mapping */
 #define SOUND_DONKEY 105
@@ -74,6 +98,8 @@ AudioControlSGTL5000     sgtl5000;     //xy=240,153
 
 MFRC522 rfid(PIN_RFID_CS, PIN_RFID_RST); // Create RFID MFRC522 instance
 
+CRGB leds[1];
+
 int StPlayer = -1;
 int uid_temp = -1; /* temporary uid */
 int uid_k = -1; /* newest UID[k] */
@@ -90,6 +116,12 @@ void setup()
     /* Keep MOSFET on power module turned on */
     pinMode(PIN_POWER_HOLD, OUTPUT);
     digitalWrite(PIN_POWER_HOLD, HIGH);
+
+    /* Init RGB LED */
+    FastLED.addLeds<WS2812, PIN_RGB_LED, GRB>(leds, 1);
+    FastLED.setBrightness(255);
+    leds[0] = COLOR_ON;
+    FastLED.show();
 
     pinMode(PIN_PAM_SD, OUTPUT);
     digitalWrite(PIN_PAM_SD, HIGH);
@@ -153,6 +185,9 @@ void loop()
     {
         case PLAYING:
 
+        leds[0] = COLOR_CARD_PRESENT;
+        FastLED.show();
+
         while (Mp3Player.isPlaying()) 
         {
             TiIdleStart = millis();
@@ -183,6 +218,9 @@ void loop()
         case PAUSING: 
 
         handleRfidCards(&FlagCardPresent, &uid_temp);
+
+        leds[0] = COLOR_ON;
+        FastLED.show();
 
         if(uid_temp != -1)
         {
